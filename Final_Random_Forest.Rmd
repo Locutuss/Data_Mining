@@ -1,0 +1,288 @@
+---
+title: "Final Exam"
+output: html_document
+date: "2024-12-02"
+---
+
+```{r}
+#setup multitheading
+library(doParallel)
+
+cores = detectCores()
+
+cl = makeCluster(cores - 4)
+
+registerDoParallel(cl)
+
+```
+
+```{r}
+
+library(dplyr)
+library(tidymodels)
+library(usemodels)
+## Assume you save the training data in the folder "C:/temp" in your local laptop
+traindata <- read.table(file = "C:/temp/7406train.csv", sep=",");
+dim(traindata);
+## dim=10000*202
+## The first two columns are X1 and X2 values, and the last 200 columns are the Y valus
+
+### Some example plots for exploratory data analysis
+### please feel free to add more exploratory analysis
+testX  <- read.table(file = "C:/temp/7406test.csv", sep=",")
+names(traindata)[names(traindata) == 'V1'] = 'X1'
+names(traindata)[names(traindata) == 'V2'] = 'X2'
+names(testX)[names(testX) == 'V1'] = 'X1'
+names(testX)[names(testX) == 'V2'] = 'X2'
+X1 <- traindata[,1];
+X2 <- traindata[,2];
+
+## note that muhat = E(Y) and Vhat = Var(Y)
+muhat <- apply(traindata[,3:202], 1, mean);
+Vhat  <- apply(traindata[,3:202], 1, var)
+
+data0 = data.frame(X1 = X1, X2=X2, muhat = muhat, Vhat = Vhat)
+```
+
+```{r}
+#basline regression mu
+
+baseline = lm(muhat~ X1 + X2, data = data0)
+summary(baseline)
+#plot(baseline)
+```
+
+```{r}
+#basline regression mu
+
+baseline = lm(Vhat~ X1 + X2, data = data0)
+summary(baseline)
+#plot(baseline)
+
+```
+
+```{r}
+
+
+```
+
+```{r}
+
+```
+
+```{r}
+B <- 100  # Number of loops
+TEALL <- matrix(NA, nrow = B, ncol = 1)  # Preallocate matrix for storing errors
+set.seed(7406)  # Set seed for reproducibility
+
+for (b in 1:B) {
+  # Randomly select 2000 observations as testing data
+  flag <- sample(1:nrow(data0), 2000)
+  train <- data0[-flag, ]  # Training data
+  test <- data0[flag, ]    # Testing data
+
+  # Linear Regression Full Model for Variance
+  Reg_Var <- lm(Vhat ~ X1 + X2, data = train)
+
+  # Predict on test data
+  pred_var.test <- predict(Reg_Var, newdata = test)
+
+  # Mean Squared Error calculation
+  te1 <- mean((test$Vhat - pred_var.test)^2)  # MSE for Vhat
+
+  # Store results
+  TEALL[b, ] <- te1
+}
+
+# Assign column names to TEALL
+colnames(TEALL) <- c("var_test")
+
+# Report sample mean and variance of the test error
+mean_errors <- apply(TEALL, 2, mean)
+var_errors <- apply(TEALL, 2, var)
+
+# Output the results
+print(mean_errors)  # Mean of test errors
+print(var_errors)   # Variance of test errors
+
+
+```
+
+
+
+```{r}
+#tidy models learning stuff
+
+set.seed(123)
+
+
+#splitting data
+forest_split = initial_split(data0)
+forest_train = training(forest_split)
+forest_test = testing(forest_split)
+
+set.seed(234)
+forest_folds = bootstraps(forest_train)
+forest_folds
+
+
+```
+```{r}
+
+#forest_folds
+
+```
+
+
+
+```{r}
+library(usemodels)
+
+use_ranger(muhat~ X1 +X2, data = forest_train)
+
+```
+
+
+```{r}
+
+system.time({
+
+ranger_recipe <- 
+  recipe(formula = muhat ~ X1 + X2, data = forest_train) 
+
+ranger_spec <- 
+  rand_forest(mtry = tune(), min_n = tune(), trees = 1000) %>% 
+  set_mode("regression") %>% 
+  set_engine("ranger") 
+
+ranger_workflow <- 
+  workflow() %>% 
+  add_recipe(ranger_recipe) %>% 
+  add_model(ranger_spec) 
+
+set.seed(673)
+doParallel::registerDoParallel(cl)# set multithreading :O
+ranger_tune <-
+  tune_grid(ranger_workflow,
+            resamples = forest_folds,
+            grid = 15)
+})
+
+stopCluster(cl)
+
+```
+
+```{r}
+
+show_best(ranger_tune, metric = 'rmse')
+
+```
+
+
+```{r}
+
+final_muhat_rf <- ranger_workflow %>%
+  finalize_workflow(select_best(ranger_tune))
+
+
+final_muhat_rf
+
+```
+
+
+```{r}
+
+muhat_rf = last_fit(final_muhat_rf, forest_split)
+#muhat_rf
+
+```
+
+```{r}
+collect_metrics(muhat_rf)
+
+
+```
+
+```{r}
+collect_predictions(muhat_rf) %>%
+  ggplot(aes(muhat, .pred)) + 
+  geom_abline(lty= 5, color = 'red', size = .75) +
+  geom_point(alpha = .05, color = 'midnightblue') +
+  coord_fixed()
+
+
+
+```
+
+```{r}
+#variance fitting
+
+cl = makeCluster(cores - 4)
+registerDoParallel(cl)
+
+use_ranger(Vhat~X1 + X2, data = forest_train)
+
+ranger_recipe <- 
+  recipe(formula = Vhat ~ X1 + X2, data = forest_train) 
+
+ranger_spec <- 
+  rand_forest(mtry = tune(), min_n = tune(), trees = 1000) %>% 
+  set_mode("regression") %>% 
+  set_engine("ranger") 
+
+ranger_workflow <- 
+  workflow() %>% 
+  add_recipe(ranger_recipe) %>% 
+  add_model(ranger_spec) 
+
+set.seed(673)
+doParallel::registerDoParallel(cl)# set multithreading :O
+ranger_tune <-
+  tune_grid(ranger_workflow,
+            resamples = forest_folds,
+            grid = 11)
+
+stopCluster(cl)
+
+```
+
+
+```{r}
+show_best(ranger_tune, metric = 'rmse')
+```
+
+
+```{r}
+final_Vhat_rf <- ranger_workflow %>%
+  finalize_workflow(select_best(ranger_tune))
+
+
+#final_Vhat_rf
+
+
+
+Vhat_rf = last_fit(final_Vhat_rf, forest_split)
+Vhat_rf
+```
+
+
+```{r}
+collect_metrics(Vhat_rf)
+```
+
+
+```{r}
+collect_predictions(Vhat_rf) %>%
+  ggplot(aes(Vhat, .pred)) + 
+  geom_abline(lty= 2, color = 'red', size = .75) +
+  geom_point(alpha = .09, color = 'midnightblue') +
+  coord_fixed()
+
+```
+
+```{r}
+
+
+
+```
+

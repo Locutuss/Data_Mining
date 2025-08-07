@@ -1,0 +1,182 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+
+```{r}
+#setup multitheading
+library(doParallel)
+
+cores = detectCores()
+
+
+```
+
+
+```{r}
+
+library(dplyr)
+library(tidymodels)
+library(usemodels)
+## Assume you save the training data in the folder "C:/temp" in your local laptop
+traindata <- read.table(file = "C:/temp/7406train.csv", sep=",");
+dim(traindata);
+## dim=10000*202
+## The first two columns are X1 and X2 values, and the last 200 columns are the Y valus
+
+### Some example plots for exploratory data analysis
+### please feel free to add more exploratory analysis
+testX  <- read.table(file = "C:/temp/7406test.csv", sep=",")
+names(traindata)[names(traindata) == 'V1'] = 'X1'
+names(traindata)[names(traindata) == 'V2'] = 'X2'
+names(testX)[names(testX) == 'V1'] = 'X1'
+names(testX)[names(testX) == 'V2'] = 'X2'
+X1 <- traindata[,1];
+X2 <- traindata[,2];
+
+## note that muhat = E(Y) and Vhat = Var(Y)
+muhat <- apply(traindata[,3:202], 1, mean);
+Vhat  <- apply(traindata[,3:202], 1, var)
+
+data0 = data.frame(X1 = X1, X2=X2, muhat = muhat, Vhat = Vhat)
+
+
+```
+
+
+
+```{r}
+#tidy models learning stuff
+
+set.seed(123)
+
+
+#splitting data
+split = initial_split(data0)
+train = training(split)
+test = testing(split)
+
+set.seed(234)
+folds = bootstraps(train)
+
+```
+
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+
+```
+

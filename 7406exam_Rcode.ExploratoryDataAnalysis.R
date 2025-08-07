@@ -28,6 +28,30 @@ plot(X2, muhat);
 plot(X1, Vhat);
 plot(X2, Vhat);
 
+library(rgl)
+
+# 3D scatter plot for muhat
+plot3d(data0$X1, data0$X2, data0$muhat,
+       type = 'p',
+       col.grid = 'grey',
+       col = gray(seq(0, .45, length.out = length(data0$muhat))),  # Grayscale palette,
+       size = 3,
+       xlab = "X1", ylab = "X2", zlab = "(muhat)",
+       main = "")
+
+# 3D scatter plot for Vhat
+plot3d(data0$X1, data0$X2, data0$Vhat,
+       col = gray(seq(0, .45, length.out = length(data0$muhat))),
+       size = 3,
+       xlab = "X1", ylab = "X2", zlab = "(Vhat)",
+       main = "")
+
+
+par(mfrow = c(2, 2))
+plot(X1, muhat, main = "Mean vs X1", xlab = "X1", ylab = "Mean (muhat)", col = "blue", pch = 19)
+lines(lowess(X1, muhat), col = "red")
+
+
 
 ## Or you can first create an initial plot of one line
 ##         and then iteratively add the lines

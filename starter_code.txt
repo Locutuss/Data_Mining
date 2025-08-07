@@ -1,0 +1,61 @@
+#tidy models learning stuff
+
+set.seed(123)
+
+data0
+#splitting data
+forest_split = initial_split(data0)
+forest_train = training(forest_split)
+forest_test = testing(forest_split)
+
+set.seed(234)
+forest_folds = bootstraps(forest_train)
+forest_folds
+
+library(usemodels)
+
+use_ranger(muhat~., data = forest_train)
+
+ranger_recipe <- 
+  recipe(formula = muhat ~ ., data = forest_train) 
+
+ranger_spec <- 
+  rand_forest(mtry = tune(), min_n = tune(), trees = 1000) %>% 
+  set_mode("regression") %>% 
+  set_engine("ranger") 
+
+ranger_workflow <- 
+  workflow() %>% 
+  add_recipe(ranger_recipe) %>% 
+  add_model(ranger_spec) 
+
+set.seed(673)
+#doParallel::registerDoParallel()# set multithreading :O
+ranger_tune <-
+  tune_grid(ranger_workflow,
+            resamples = forest_folds,
+            grid = 11)
+
+show_best(ranger_tune, metric = 'rmse')
+
+final_muhat_rf <- ranger_workflow %>%
+  finalize_workflow(select_best(ranger_tune))
+
+
+final_muhat_rf
+
+
+
+muhat_rf = last_fit(final_muhat_rf, forest_split)
+muhat_rf
+
+collect_metrics(muhat_rf)
+
+
+collect_predictions(muhat_rf) %>%
+  ggplot(aes(muhat, .pred)) + 
+  geom_abline(lty= 2, color = 'gray50') +
+  geom_point(alpha = .5, color = 'midnightblue') +
+  coord_fixed()
+
+

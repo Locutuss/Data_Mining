@@ -1,0 +1,252 @@
+---
+title: "Final Boost"
+output: html_document
+date: "2024-12-06"
+---
+
+
+```{r}
+#setup multitheading
+library(doParallel)
+
+cores = detectCores()
+
+
+```
+
+
+```{r}
+
+library(dplyr)
+library(tidymodels)
+library(usemodels)
+## Assume you save the training data in the folder "C:/temp" in your local laptop
+traindata <- read.table(file = "C:/temp/7406train.csv", sep=",");
+dim(traindata);
+## dim=10000*202
+## The first two columns are X1 and X2 values, and the last 200 columns are the Y valus
+
+### Some example plots for exploratory data analysis
+### please feel free to add more exploratory analysis
+testX  <- read.table(file = "C:/temp/7406test.csv", sep=",")
+names(traindata)[names(traindata) == 'V1'] = 'X1'
+names(traindata)[names(traindata) == 'V2'] = 'X2'
+names(testX)[names(testX) == 'V1'] = 'X1'
+names(testX)[names(testX) == 'V2'] = 'X2'
+X1 <- traindata[,1];
+X2 <- traindata[,2];
+
+## note that muhat = E(Y) and Vhat = Var(Y)
+muhat <- apply(traindata[,3:202], 1, mean);
+Vhat  <- apply(traindata[,3:202], 1, var)
+
+data0 = data.frame(X1 = X1, X2=X2, muhat = muhat, Vhat = Vhat)
+
+
+```
+
+
+
+```{r}
+#tidy models learning stuff
+
+set.seed(123)
+
+
+#splitting data
+split = initial_split(data0)
+train = training(split)
+test = testing(split)
+
+set.seed(234)
+folds = bootstraps(train)
+
+```
+
+
+
+```{r}
+xgb_spec <- boost_tree(
+  trees = 1000,
+  tree_depth = tune(), min_n = tune(), #complexity
+  loss_reduction = tune(),                     ## first three: model complexity
+  sample_size = tune(), mtry = tune(),         ## randomness
+  learn_rate = tune()                          ## step size
+) %>%
+  set_engine("xgboost") %>%
+  set_mode("regression")
+
+xgb_spec
+
+
+```
+
+```{r}
+#grid_latin_hypercube
+#can also try entropy
+xgb_grid = grid_space_filling(
+  tree_depth(),
+  min_n(),
+  loss_reduction(),
+  sample_size = sample_prop(),
+  finalize(mtry(),train),
+  learn_rate(),
+  size = 50
+)
+
+#xgb_grid
+
+
+```
+
+
+```{r}
+xgb_wf = workflow() %>%
+  add_formula(muhat~ X1 + X2) %>%
+  add_model(xgb_spec)
+  
+  
+#xgb_wf 
+  
+```
+
+
+```{r}
+set.seed(123)
+cl = makeCluster(cores - 4)
+registerDoParallel(cl)
+doParallel::registerDoParallel(cl)
+
+system.time({
+
+xgb_res <- tune_grid(
+  
+  xgb_wf,
+  resamples = folds,
+  grid = xgb_grid,
+  control = control_grid(save_pred = TRUE)
+  
+)
+
+})
+
+stopCluster(cl)
+
+```
+
+
+```{r}
+
+metrics = collect_metrics(xgb_res)
+metrics
+```
+
+
+
+```{r}
+show_best(xgb_res, metric =  "rmse")
+
+```
+
+
+
+```{r}
+best_muhat = select_best(xgb_res, metric = 'rmse')
+
+final_xgb_muhat = finalize_workflow(xgb_wf, best_muhat )
+final_xgb_muhat
+
+
+```
+
+
+
+```{r}
+XGB_muhat_test = last_fit(final_xgb_muhat, split)
+collect_metrics(XGB_muhat_test)
+
+```
+
+
+
+```{r}
+#variance model
+xgb_wf = workflow() %>%
+  add_formula(Vhat~ X1 + X2) %>%
+  add_model(xgb_spec)
+
+set.seed(123)
+cl = makeCluster(cores - 4)
+registerDoParallel(cl)
+doParallel::registerDoParallel(cl)
+
+system.time({
+
+xgb_res <- tune_grid(
+  
+  xgb_wf,
+  resamples = folds,
+  grid = xgb_grid,
+  control = control_grid(save_pred = TRUE)
+  
+)
+
+})
+
+stopCluster(cl)
+
+
+
+```
+
+```{r}
+metrics = collect_metrics(xgb_res)
+metrics
+```
+
+```{r}
+show_best(xgb_res, metric =  "rmse")
+```
+
+```{r}
+best_Vhat = select_best(xgb_res, metric = 'rmse')
+
+final_xgb_Vhat = finalize_workflow(xgb_wf, best_Vhat )
+final_xgb_Vhat
+
+```
+
+
+```{r}
+XGB_Vhat_test = last_fit(final_xgb_Vhat, split)
+collect_metrics(XGB_Vhat_test)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
